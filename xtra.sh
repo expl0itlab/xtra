@@ -31,19 +31,19 @@ display_banner() {
 
 check_dependencies() {
     echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Checking dependencies...${NC}"
-    
+
     local missing=()
     local packages=("curl" "grep" "sed" "awk")
-    
+
     for pkg in "${packages[@]}"; do
         if ! command -v "$pkg" &> /dev/null; then
             missing+=("$pkg")
         fi
     done
-    
+
     if [ ${#missing[@]} -gt 0 ]; then
         echo -e "${WHITE}[${RED}!${WHITE}] ${RED}Missing: ${missing[*]}${NC}"
-        
+
         if [ -d "/data/data/com.termux/files/usr" ]; then
             echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Installing for Termux...${NC}"
             pkg update -y && pkg install ${missing[*]} -y
@@ -61,13 +61,13 @@ check_dependencies() {
             exit 1
         fi
     fi
-    
+
     echo -e "${WHITE}[${GREEN}+${WHITE}] ${GREEN}Dependencies OK${NC}"
 }
 
 check_internet() {
     echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Checking internet...${NC}"
-    
+
     if curl -s --connect-timeout 5 --max-time 10 http://google.com > /dev/null 2>&1; then
         echo -e "${WHITE}[${GREEN}+${WHITE}] ${GREEN}Internet connection OK${NC}"
         return 0
@@ -79,11 +79,11 @@ check_internet() {
 
 validate_url() {
     local url="$1"
-    
+
     if [[ ! "$url" =~ ^https?:// ]]; then
         url="http://$url"
     fi
-    
+
     if [[ "$url" =~ ^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,} ]]; then
         echo "$url"
         return 0
@@ -95,7 +95,7 @@ validate_url() {
 fetch_page() {
     local url="$1"
     local output="$2"
-    
+
     if curl -s -L -A "$USER_AGENT" --connect-timeout $TIMEOUT --max-time $((TIMEOUT * 2)) \
        -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
        "$url" > "$output" 2>/dev/null; then
@@ -108,46 +108,65 @@ fetch_page() {
 extract_emails() {
     local input="$1"
     local output="$2"
-    
-    grep -E -o '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$input" | sort -u > "$output"
+    # Always start with a fresh file
+    > "$output"
+
+    grep -E -o '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$input" | sort -u >> "$output"
     grep -E -o '[a-zA-Z0-9._%+-]+\s*\[at\]\s*[a-zA-Z0-9.-]+\s*\[dot\]\s*[a-zA-Z]{2,}' "$input" | \
-        sed 's/\[at\]/@/g; s/\[dot\]/./g; s/\s//g' >> "$output" 2>/dev/null
-    
+        sed 's/\[at\]/@/g; s/\[dot\]/./g; s/[[:space:]]//g' >> "$output" 2>/dev/null
+
     sort -u -o "$output" "$output"
-    
-    local count=$(wc -l < "$output" 2>/dev/null | tr -d ' ')
+
+    # Defensive: ensure count is always a number
+    local count=0
+    if [ -s "$output" ]; then
+        count=$(wc -l < "$output" | tr -d ' ')
+    fi
     echo "$count"
 }
 
 extract_phones() {
     local input="$1"
     local output="$2"
-    
-    grep -E -o '\+[0-9]{1,4}[-\s]?[0-9]{1,14}' "$input" >> "$output"
-    grep -E -o '\([0-9]{3}\)[-\s]?[0-9]{3}[-\s]?[0-9]{4}' "$input" >> "$output"
-    grep -E -o '[0-9]{3}[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4}' "$input" >> "$output"
-    
-    sed -i 's/[()]//g; s/\s/-/g; s/\./-/g' "$output"
+    # Always start with a fresh file
+    > "$output"
+
+    grep -E -o '\+[0-9]{1,4}[-[:space:]]?[0-9]{1,14}' "$input" >> "$output"
+    grep -E -o '\([0-9]{3}\)[-[:space:]]?[0-9]{3}[-[:space:]]?[0-9]{4}' "$input" >> "$output"
+    grep -E -o '[0-9]{3}[-[:space:]\.]{1,2}[0-9]{3}[-[:space:]\.]{1,2}[0-9]{4}' "$input" >> "$output"
+
+    # Fix: Use [[:space:]] for whitespace and clear up parentheses and dots
+    sed -i 's/[()]//g; s/[[:space:]]/-/g; s/\./-/g' "$output"
     sort -u -o "$output" "$output"
-    
-    local count=$(wc -l < "$output" 2>/dev/null | tr -d ' ')
+
+    local count=0
+    if [ -s "$output" ]; then
+        count=$(wc -l < "$output" | tr -d ' ')
+    fi
     echo "$count"
 }
 
 extract_links() {
     local input="$1"
     local output="$2"
-    
-    grep -E -o 'https?://[^"'\''<>()\s]+' "$input" | sort -u > "$output"
+
+    > "$output"
+
+    grep -E -o 'https?://[^"'\''<>()[:space:]]+' "$input" | sort -u > "$output"
 
     > "${output}.social"
     > "${output}.api"
     > "${output}.files"
     > "${output}.internal"
     > "${output}.external"
-    
+
+    # Guard: Make sure TARGET_URL is set
+    if [ -z "$TARGET_URL" ]; then
+        echo -e "${WHITE}[${RED}!${WHITE}] ${RED}Internal error: TARGET_URL is unset${NC}"
+        return 1
+    fi
     local domain=$(echo "$TARGET_URL" | sed -E 's|^https?://([^/]+).*|\1|')
-    
+
     local social_patterns=(
         'facebook\.com'
         'twitter\.com'
@@ -158,7 +177,6 @@ extract_links() {
         'reddit\.com'
         'pinterest\.com'
     )
-    
     local api_patterns=(
         'api\.'
         'graphql'
@@ -168,7 +186,6 @@ extract_links() {
         'soap'
         'endpoint'
     )
-    
     local file_patterns=(
         '\.pdf$'
         '\.docx?$'
@@ -179,7 +196,7 @@ extract_links() {
         '\.tar\.gz$'
         '\.csv$'
     )
-    
+
     while IFS= read -r link; do
         for pattern in "${social_patterns[@]}"; do
             if [[ "$link" =~ $pattern ]]; then
@@ -187,44 +204,47 @@ extract_links() {
                 break
             fi
         done
-        
+
         for pattern in "${api_patterns[@]}"; do
             if [[ "$link" =~ $pattern ]]; then
                 echo "$link" >> "${output}.api"
                 break
             fi
         done
-        
+
         for pattern in "${file_patterns[@]}"; do
             if [[ "$link" =~ $pattern ]]; then
                 echo "$link" >> "${output}.files"
                 break
             fi
         done
-        
+
+        # Internal/external logic
         if [[ "$link" =~ $domain ]]; then
             echo "$link" >> "${output}.internal"
         else
             echo "$link" >> "${output}.external"
         fi
     done < "$output"
-    
-    local count=$(wc -l < "$output" 2>/dev/null | tr -d ' ')
+
+    local count=0
+    if [ -s "$output" ]; then
+        count=$(wc -l < "$output" | tr -d ' ')
+    fi
     echo "$count"
 }
 
 extract_metadata() {
     local input="$1"
     local output="$2"
-    
+
     echo "=== PAGE METADATA ===" > "$output"
-    
+
     echo -e "\n=== TITLE ===" >> "$output"
     grep -i -o '<title>[^<]*</title>' "$input" | sed 's/<[^>]*>//g' >> "$output"
-    
+
     echo -e "\n=== META TAGS ===" >> "$output"
     grep -i '<meta' "$input" | head -20 >> "$output"
-    
 
     echo -e "\n=== HEADINGS ===" >> "$output"
     for i in {1..6}; do
@@ -236,19 +256,17 @@ deep_scan() {
     local url="$1"
     local depth="${2:-1}"
     local output_file="$3"
-    
+
     if [ "$depth" -gt $MAX_DEPTH ]; then
         return
     fi
-    
+
     echo -e "${WHITE}[${BLUE}*${WHITE}] ${BLUE}Depth ${depth}: $url${NC}"
-    
+
     local temp_file=".xtra_deep_${depth}_$$.html"
-    
     if fetch_page "$url" "$temp_file"; then
-    
         cat "$temp_file" >> "$output_file"
-        
+
         if [ "$depth" -lt $MAX_DEPTH ]; then
             grep -E -o 'href="[^"]+"' "$temp_file" | \
             sed 's/href="//; s/"//' | \
@@ -259,31 +277,31 @@ deep_scan() {
             done
         fi
     fi
-    
+
     rm -f "$temp_file" 2>/dev/null
 }
 
 save_results() {
     local folder_name="$1"
     local timestamp=$(date '+%Y%m%d_%H%M%S')
-    
+
     if [ -z "$folder_name" ]; then
         folder_name="xtra_results_${timestamp}"
     fi
-    
+
     mkdir -p "$folder_name"
-    
+
     for file in *.txt 2>/dev/null; do
-        if [ -f "$file" ] && [[ ! "$file" =~ ^\. ]]; then
+        if [ -f "$file" ] && [[ ! "$file" =~ ^\..* ]]; then
             mv "$file" "$folder_name/" 2>/dev/null
         fi
     done
-    
+
     cat > "${folder_name}/report.txt" << EOF
 XTRA Scan Report
 ================
 Date: $(date)
-Target: $TARGET_URL
+Target: ${TARGET_URL:-unknown}
 Scan Mode: $SCAN_MODE
 
 RESULTS SUMMARY:
@@ -310,32 +328,32 @@ Always ensure proper authorization before scanning websites.
 
 Generated by XTRA v${VERSION}
 EOF
-    
+
     echo -e "${WHITE}[${GREEN}+${WHITE}] ${GREEN}Results saved to: ${folder_name}${NC}"
 }
 
 show_summary() {
     echo -e "\n${CYAN}=== SCAN SUMMARY ===${NC}"
-    
+
     if [ -f "emails.txt" ]; then
         local email_count=$(wc -l < "emails.txt" 2>/dev/null | tr -d ' ')
         echo -e "${WHITE}Emails: ${GREEN}${email_count}${NC}"
     fi
-    
+
     if [ -f "phones.txt" ]; then
         local phone_count=$(wc -l < "phones.txt" 2>/dev/null | tr -d ' ')
         echo -e "${WHITE}Phone Numbers: ${GREEN}${phone_count}${NC}"
     fi
-    
+
     if [ -f "links.txt" ]; then
         local link_count=$(wc -l < "links.txt" 2>/dev/null | tr -d ' ')
         echo -e "${WHITE}Total Links: ${GREEN}${link_count}${NC}"
-        
+
         if [ -f "links.txt.social" ]; then
             local social_count=$(wc -l < "links.txt.social" 2>/dev/null | tr -d ' ')
             echo -e "${WHITE}  ↪ Social Media: ${YELLOW}${social_count}${NC}"
         fi
-        
+
         if [ -f "links.txt.api" ]; then
             local api_count=$(wc -l < "links.txt.api" 2>/dev/null | tr -d ' ')
             echo -e "${WHITE}  ↪ API Endpoints: ${YELLOW}${api_count}${NC}"
@@ -346,22 +364,27 @@ show_summary() {
 perform_scan() {
     local mode="$1"
     local url="$2"
-    
+
     echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Fetching target page...${NC}"
-    
+
     local html_file=".xtra_page_$$.html"
     local text_file=".xtra_text_$$.txt"
-    
+    local deep_file="deep_scan.html"
+    local result=0
+
+    trap 'rm -f "$html_file" "$text_file" "$deep_file" 2>/dev/null' EXIT
+
     if ! fetch_page "$url" "$html_file"; then
         echo -e "${WHITE}[${RED}!${WHITE}] ${RED}Failed to fetch page${NC}"
         rm -f "$html_file" 2>/dev/null
+        trap - EXIT
         return 1
     fi
-    
+
     sed 's/<[^>]*>//g; s/&[^;]*;//g' "$html_file" > "$text_file"
-    
+
     echo -e "${WHITE}[${GREEN}+${WHITE}] ${GREEN}Page loaded successfully${NC}"
-    
+
     case "$mode" in
         "fast")
             echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Performing fast scan...${NC}"
@@ -372,8 +395,8 @@ perform_scan() {
             ;;
         "deep")
             echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Performing deep scan...${NC}"
-            deep_scan "$url" 1 "deep_scan.html"
-            sed 's/<[^>]*>//g; s/&[^;]*;//g' "deep_scan.html" > "$text_file"
+            deep_scan "$url" 1 "$deep_file"
+            sed 's/<[^>]*>//g; s/&[^;]*;//g' "$deep_file" > "$text_file"
             extract_emails "$text_file" "emails.txt"
             extract_phones "$text_file" "phones.txt"
             extract_links "$text_file" "links.txt"
@@ -394,48 +417,48 @@ perform_scan() {
             echo -e "${CYAN}=== SELECT DATA TYPES ===${NC}"
             read -p "$(echo -e "${WHITE}Extract emails? (y/n): ${NC}")" -n 1 -r; echo
             [[ $REPLY =~ ^[Yy]$ ]] && extract_emails "$text_file" "emails.txt"
-            
+
             read -p "$(echo -e "${WHITE}Extract phone numbers? (y/n): ${NC}")" -n 1 -r; echo
             [[ $REPLY =~ ^[Yy]$ ]] && extract_phones "$text_file" "phones.txt"
-            
+
             read -p "$(echo -e "${WHITE}Extract links? (y/n): ${NC}")" -n 1 -r; echo
             [[ $REPLY =~ ^[Yy]$ ]] && extract_links "$text_file" "links.txt"
-            
+
             read -p "$(echo -e "${WHITE}Extract metadata? (y/n): ${NC}")" -n 1 -r; echo
             [[ $REPLY =~ ^[Yy]$ ]] && extract_metadata "$html_file" "metadata.txt"
             ;;
     esac
-    
-    rm -f "$html_file" "$text_file" "deep_scan.html" 2>/dev/null
-    
-    return 0
+
+    rm -f "$html_file" "$text_file" "$deep_file" 2>/dev/null
+    trap - EXIT
+    return $result
 }
 
 interactive_mode() {
     display_banner
     check_dependencies
     check_internet || exit 1
-    
+
     echo -e "${CYAN}=== TARGET SELECTION ===${NC}"
     read -p "$(echo -e "${WHITE}[${GREEN}+${WHITE}] ${GREEN}Enter target URL: ${NC}")" url_input
-    
+
     TARGET_URL=$(validate_url "$url_input")
-    if [ $? -ne 0 ]; then
+    if [ $? -ne 0 ] || [ -z "$TARGET_URL" ]; then
         echo -e "${WHITE}[${RED}!${WHITE}] ${RED}Invalid URL${NC}"
         exit 1
     fi
-    
+
     echo -e "${WHITE}[${GREEN}+${WHITE}] ${GREEN}Target: ${TARGET_URL}${NC}"
-    
+
     echo -e "\n${CYAN}=== SCAN MODES ===${NC}"
     echo -e "${WHITE}1. ${GREEN}Fast Scan${WHITE} - All data types"
     echo -e "${WHITE}2. ${YELLOW}Custom Scan${WHITE} - Choose data types"
     echo -e "${WHITE}3. ${BLUE}Deep Scan${WHITE} - Recursive (depth ${MAX_DEPTH})"
     echo -e "${WHITE}4. ${PURPLE}Metadata Only${WHITE}"
     echo -e "${WHITE}5. ${RED}API Scan${WHITE} - Find API endpoints"
-    
+
     read -p "$(echo -e "\n${WHITE}[${YELLOW}?${WHITE}] ${YELLOW}Select mode (1-5): ${NC}")" mode_choice
-    
+
     case $mode_choice in
         1) SCAN_MODE="fast"; perform_scan "fast" "$TARGET_URL" ;;
         2) SCAN_MODE="custom"; perform_scan "custom" "$TARGET_URL" ;;
@@ -444,10 +467,10 @@ interactive_mode() {
         5) SCAN_MODE="api"; perform_scan "api" "$TARGET_URL" ;;
         *) echo -e "${WHITE}[${RED}!${WHITE}] ${RED}Invalid choice${NC}"; exit 1 ;;
     esac
-    
+
     if [ $? -eq 0 ]; then
         show_summary
-        
+
         echo -e "\n${CYAN}=== SAVE RESULTS ===${NC}"
         read -p "$(echo -e "${WHITE}Save results to folder? (y/n): ${NC}")" -n 1 -r; echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -457,7 +480,7 @@ interactive_mode() {
             echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Results are in current directory${NC}"
         fi
     fi
-    
+
     echo -e "\n${GREEN}Scan completed!${NC}"
 }
 
@@ -465,16 +488,17 @@ cli_mode() {
     display_banner
     check_dependencies
     check_internet || exit 1
-    
+
     local mode="fast"
     local output_dir=""
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             -u|--url)
                 TARGET_URL=$(validate_url "$2")
-                if [ $? -ne 0 ]; then
+                if [ $? -ne 0 ] || [ -z "$TARGET_URL" ]; then
                     echo -e "${WHITE}[${RED}!${WHITE}] ${RED}Invalid URL: $2${NC}"
+                    show_help
                     exit 1
                 fi
                 shift 2
@@ -506,22 +530,22 @@ cli_mode() {
                 ;;
         esac
     done
-    
+
     if [ -z "$TARGET_URL" ]; then
         echo -e "${WHITE}[${RED}!${WHITE}] ${RED}No target URL specified${NC}"
         show_help
         exit 1
     fi
-    
+
     echo -e "${WHITE}[${GREEN}+${WHITE}] ${GREEN}Target: ${TARGET_URL}${NC}"
     echo -e "${WHITE}[${YELLOW}*${WHITE}] ${YELLOW}Mode: ${mode}${NC}"
-    
+
     SCAN_MODE="$mode"
     perform_scan "$mode" "$TARGET_URL"
-    
+
     if [ $? -eq 0 ]; then
         show_summary
-        
+
         if [ -n "$output_dir" ]; then
             save_results "$output_dir"
         else
