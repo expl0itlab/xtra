@@ -350,7 +350,8 @@ save_results() {
     }
     
     # Move result files if they exist
-    for file in emails.txt phones.txt links.txt metadata.txt; do
+    local files_to_move=("emails.txt" "phones.txt" "links.txt" "metadata.txt")
+    for file in "${files_to_move[@]}"; do
         if [ -f "$file" ] && [ -s "$file" ]; then
             mv "$file" "$folder_name/" 2>/dev/null || cp "$file" "$folder_name/" 2>/dev/null
         fi
