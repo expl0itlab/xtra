@@ -1,280 +1,287 @@
-# XTRA v1.0 - Advanced Web Scraper
+# XTRA v2.0 — Web Reconnaissance Tool
 
-![XTRA](https://img.shields.io/badge/XTRA-ExploitLab-blue)
-![Version](https://img.shields.io/badge/Version-1.0-red)
+![Version](https://img.shields.io/badge/Version-2.0-blue)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Termux%20%7C%20macOS-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Termux-orange)
-![Year](https://img.shields.io/badge/Year-2025-brightgreen)
+![Shell](https://img.shields.io/badge/Shell-Bash-lightgrey)
+![Year](https://img.shields.io/badge/Year-2026-brightgreen)
 
-**XTRA** is a powerful web scraping tool from **Exploit Lab** - designed for authorized security testing, reconnaissance, and data gathering operations.
+XTRA is a multi-page web reconnaissance tool written in pure Bash. It crawls entire sites not just one page, and extracts emails, phone numbers, social profiles, links, metadata, HTTP headers, HTML comments, and technology stack information. Results are saved in organized output files with optional JSON and CSV export.
 
-##  Features
+---
 
-### **Core Capabilities**
-- **Email Extraction** - Extract email addresses from web pages
+## What's New in v2.0
 
-- **Phone Number Harvesting** - Find phone numbers in various formats
+| Feature | v1.0 | v2.0 |
+|---|---|---|
+| Pages scanned | 1 | Up to 500+ (configurable) |
+| Phone accuracy | High false-positive rate | `tel:` href priority + international format |
+| Social profiles | ✗ | ✓ 12 platforms |
+| Technology detection | ✗ | ✓ 40+ signatures |
+| HTTP header analysis | ✗ | ✓ Raw + security gap report |
+| HTML comment extraction | ✗ | ✓ |
+| robots.txt / sitemap.xml | ✗ | ✓ Auto-fetched, URLs queued |
+| JSON export | ✗ | ✓ |
+| CSV export | ✗ | ✓ |
+| Internal vs external links | ✗ | ✓ Split automatically |
+| Quiet / verbose modes | ✗ | ✓ |
+| Crawl rate limiting | ✗ | ✓ Configurable delay |
 
-- **Link Discovery** - Extract and display URLs from web pages
+---
 
-- **Metadata Analysis** - Extract page titles and meta information
+## Features
 
-### **Scan Modes**
-- **Fast Scan** - Extract emails, phones, links, and metadata
+### Crawler
+- Recursive multi-page crawl with configurable depth and page limit
+- Visited-URL tracking to prevent loops
+- Domain scoping — stays on the target site, does not wander to third parties
+- Polite request delay between pages (configurable)
+- robots.txt parsed for disallowed paths; sitemap.xml URLs fed directly into the crawl queue
 
-- **Custom Scan** - Choose specific data types to extract
+### Extraction
+- **Emails** — deduplicated, filters out placeholder addresses like `example@test.com`
+- **Phone numbers** — extracted from `tel:` href attributes first (high confidence), then international and US formats
+- **Social profiles** — Twitter/X, LinkedIn (personal + company), GitHub, Instagram, Facebook, YouTube, TikTok, Telegram, Reddit
+- **Links** — all discovered URLs, automatically split into internal and external files
+- **HTML comments** — all `<!-- ... -->` blocks, often containing internal paths, credentials, or developer notes
+- **Page metadata** — title, description, keywords, charset per crawled page
 
-- **Metadata Only** - Extract only page metadata
+### Intelligence
+- **Technology detection** — 40+ signatures covering CMS (WordPress, Drupal, Shopify, Joomla), JS frameworks (React, Vue, Angular, Next.js), analytics (GA4, GTM, Hotjar, Mixpanel), CDNs (Cloudflare, Fastly, CloudFront), server software (Nginx, Apache, Varnish), e-commerce platforms, and more
+- **HTTP header analysis** — raw headers saved per page; a separate security report flags missing `X-Frame-Options`, `Content-Security-Policy`, `Strict-Transport-Security`, and `X-XSS-Protection`
 
-### **Professional Output**
-- **Organized Results** - Results saved in timestamped folders
+### Output
+- Clean, timestamped output folder
+- Optional JSON export (structured, jq-compatible)
+- Optional CSV export (flat type/value format for spreadsheets)
+- Quiet mode for scripting; verbose mode for debugging
+- Summary table printed at end of every scan
 
-- **Summary Reports** - Detailed scan reports
+---
 
-- **Clean Operations** - Automatic cleanup of temporary files
+## Installation
 
-## 📦 Installation
-
-### **Quick Installation**
+**Standard (Linux / macOS / WSL)**
 ```bash
-# Clone the repository
-git clone https://github.com/exploitarium/xtra.git
+git clone https://github.com/expl0itlab/xtra.git
 cd xtra
 chmod +x xtra.sh
 ```
-One-Line Installation
+
+**One-line**
 ```bash
-curl -sL https://raw.githubusercontent.com/exploitarium/xtra/main/xtra.sh -o xtra.sh && chmod +x xtra.sh
+curl -sL https://raw.githubusercontent.com/expl0itlab/xtra/main/xtra.sh -o xtra.sh && chmod +x xtra.sh
 ```
-Termux Installation
+
+**Termux (Android)**
 ```bash
 pkg install git curl -y
-git clone https://github.com/exploitarium/xtra.git
+git clone https://github.com/expl0itlab/xtra.git
 cd xtra
 chmod +x xtra.sh
 ```
- Usage
-Interactive Mode (Recommended)
-```bash
-./xtra.sh
-```
-Follow the prompts to configure your scan operation.
 
-Command Line Mode
-```bash
-# Fast scan with all data types
-./xtra.sh -u https://example.com -f
-
-# Custom scan (choose what to extract)
-./xtra.sh -u example.com -c
-
-# Metadata only
-./xtra.sh -u example.com -m
-
-# With custom output directory
-./xtra.sh -u example.com -f -o ./results
-```
-Command Line Options
-```Option	Short	Description	Example
---url	-u	Target URL to scan	-u https://example.com
-
-
---fast	-f	Fast scan (all data types)	-u site.com -f
-
-
---custom	-c	Custom scan (choose data types)	-u site.com -c
-
-
---meta	-m	Metadata only	-m
-
-
---output	-o	Custom output directory	-o ./results
-
-
---help	-h	Show help information	-h
-```
-## 📋 Operation Modes
-1. Fast Scan (Default)
-```bash
-./xtra.sh -u example.com -f
-```
-Extracts emails, phone numbers, links, and metadata in one operation.
-
-2. Custom Scan
-```bash
-./xtra.sh -u example.com -c
-# Or interactive mode: choose option 2
-```
-Allows you to select which data types to extract.
-
-3. Metadata Scan
-```bash
-./xtra.sh -u example.com -m
-```
-Extracts only page metadata (title, meta tags).
-
-📁 Output Structure
-```text
-xtra_results_20250107_153045/
-├── emails.txt        # Extracted email addresses
-├── phones.txt        # Phone numbers found
-├── links.txt         # URLs discovered
-├── metadata.txt      # Page metadata
-└── report.txt        # Scan summary report
-```
-
-🛡️ **Security Features**
-Automatic Cleanup - Temporary files removed after scan
-
-Custom User-Agent - Uses XTRA-specific agent
-
-Error Handling - Graceful failure recovery
-
-Session Management - Clean operation tracking
-
-⚙️ **Technical Specifications**
-System Requirements
-Minimum: Linux/Unix environment with bash
-
-Recommended: 256MB RAM, 50MB disk space
-
-Network: Internet connectivity
-
-Dependencies
-```bash
-# Core dependencies (auto-installed)
-- curl     # HTTP requests
-- grep     # Pattern matching
-
-# Optional
-- sed      # Text processing
-- awk      # Advanced text processing
-```
-
-**Platform Support**
-Linux (Ubuntu, Debian, Fedora, Arch, etc.)
-
-Termux (Android)
-
-macOS (with bash)
-
-WSL (Windows Subsystem for Linux)
-
-Configuration
-Environment Variables
-```bash
-# Set custom parameters
-export XTRA_USER_AGENT="CustomAgent/1.0"
-export XTRA_TIMEOUT=30
-```
-
-📊 Usage Examples
-Basic Scan
-```bash
-./xtra.sh -u https://example.com -f
-```
-Save to Specific Directory
-```bash
-./xtra.sh -u https://target.com -f -o ./security_scan
-```
-Interactive Mode
-```bash
-./xtra.sh
-# Follow the prompts
-```
-
-## Legal & Ethical Considerations⚠️
-IMPORTANT DISCLAIMER
-
-### XTRA v1.0 is developed for:
-
-**Authorized Activities:**
-
-Security testing with permission
-
-Educational purposes
-
-Bug bounty programs (in scope)
-
-Legal reconnaissance
+**Dependencies** — `curl`, `grep`, `sed`, `awk`, `sort` (all standard on Linux/macOS). `python3` is optional and enables full JSON export; a basic fallback is used if it is not present.
 
 ---
-**Prohibited Activities:**
 
-Unauthorized scanning
+## Usage
 
-Terms of Service violations
+### Interactive mode
+```bash
+./xtra.sh
+```
+Prompts for URL, scan mode, crawl settings, and output options.
 
-Illegal activities
+### CLI mode
+```bash
+./xtra.sh -u <URL> [options]
+```
 
-Harassment or spam
+### Options
 
-**Always:**
+| Option | Short | Description | Default |
+|---|---|---|---|
+| `--url URL` | `-u` | Target URL (required) | — |
+| `--fast` | `-f` | Full crawl, extract everything | ✓ default |
+| `--single` | `-s` | Single page scan only | — |
+| `--meta` | `-m` | Metadata + headers + tech detection only | — |
+| `--depth N` | `-d` | Maximum crawl depth | 3 |
+| `--pages N` | `-p` | Maximum pages to crawl | 50 |
+| `--delay N` | `-w` | Seconds between requests | 1 |
+| `--output DIR` | `-o` | Output directory | auto-timestamped |
+| `--json` | | Export results as JSON | off |
+| `--csv` | | Export results as CSV | off |
+| `--quiet` | `-q` | Suppress all output except errors and summary | off |
+| `--verbose` | `-v` | Show every request and match | off |
+| `--help` | `-h` | Show help | — |
 
-Obtain proper authorization
+---
 
-Respect website policies
-
-Follow applicable laws
-
-Use data responsibly
-
-🐛 Troubleshooting
-Common Issues
-Missing dependencies:
+## Examples
 
 ```bash
-# Linux
-sudo apt-get install curl grep
-```
-```# Termux
-pkg install curl grep
-```
-Permission errors:
+# Full site crawl — up to 100 pages, export JSON, save to ./results
+./xtra.sh -u https://example.com -f -p 100 --json -o ./results
 
+# Quick single-page scan
+./xtra.sh -u https://example.com -s
+
+# Metadata and tech detection only, quiet output
+./xtra.sh -u https://example.com -m -q
+
+# Deep crawl with a polite 2-second delay between requests
+./xtra.sh -u https://example.com -f -d 5 -p 200 -w 2
+
+# Full crawl with both JSON and CSV export
+./xtra.sh -u https://example.com -f --json --csv
+
+# Verbose mode for debugging
+./xtra.sh -u https://example.com -s -v
+```
+
+---
+
+## Output Structure
+
+```
+xtra_results_20250615_142301/
+├── emails.txt              Extracted email addresses (deduplicated)
+├── phones.txt              Phone numbers
+├── socials.txt             Social media profile URLs
+├── links.txt               All discovered URLs
+├── links_internal.txt      URLs on the same domain
+├── links_external.txt      URLs on external domains
+├── metadata.txt            Per-page title, description, keywords, charset
+├── html_comments.txt       All HTML source comments
+├── technologies.txt        Detected tech stack
+├── headers.txt             Raw HTTP response headers per page
+├── security_headers.txt    Missing security headers flagged per page
+├── robots.txt              Target's robots.txt (if present)
+├── results.json            Full structured export (with --json)
+├── results.csv             Flat type/value export (with --csv)
+└── report.txt              Scan summary report
+```
+
+### JSON structure
+```json
+{
+  "meta": {
+    "tool": "XTRA",
+    "version": "2.0",
+    "timestamp": "2025-06-15T14:23:01Z",
+    "target": "https://example.com",
+    "base_domain": "example.com",
+    "scan_mode": "crawl",
+    "pages_crawled": 42
+  },
+  "emails": ["contact@example.com"],
+  "phones": ["+1 800 555 0100"],
+  "socials": ["https://github.com/example"],
+  "links": ["https://example.com/about"],
+  "links_internal": ["https://example.com/about"],
+  "links_external": ["https://cdn.example.net"],
+  "technologies": ["WordPress", "Cloudflare", "jQuery"],
+  "security_missing_headers": ["Content-Security-Policy", "X-Frame-Options"]
+}
+```
+
+---
+
+## Detected Technologies
+
+XTRA fingerprints 40+ technologies across the following categories:
+
+**CMS** — WordPress, Joomla, Drupal, Magento, Shopify, Wix, Squarespace, Ghost
+
+**Frameworks / Languages** — Laravel, Django, Ruby on Rails, ASP.NET, PHP
+
+**JavaScript** — React, Vue.js, Angular, Next.js, Nuxt.js, jQuery
+
+**UI / CSS** — Bootstrap, Tailwind CSS, Bulma
+
+**Analytics** — Google Analytics 4, Google Tag Manager, Hotjar, Matomo, Mixpanel
+
+**CDN / Infrastructure** — Cloudflare, Fastly, AWS CloudFront, Nginx, Apache, Varnish
+
+**E-commerce** — WooCommerce, PrestaShop, OpenCart
+
+**Support / Chat** — Intercom, Zendesk, Algolia
+
+**Security** — reCAPTCHA, hCaptcha
+
+---
+
+## Security Header Analysis
+
+For every page crawled, XTRA checks for the presence of the following headers and flags any that are missing in `security_headers.txt`:
+
+- `X-Frame-Options` — clickjacking protection
+- `Content-Security-Policy` — XSS and injection mitigation
+- `Strict-Transport-Security` — HTTPS enforcement
+- `X-XSS-Protection` — legacy XSS filter
+- `Access-Control-Allow-Origin` — CORS policy
+
+---
+
+## Troubleshooting
+
+**Permission denied**
 ```bash
 chmod +x xtra.sh
 ```
-Network issues:
 
+**Missing dependencies (manual install)**
 ```bash
-# Test connectivity
-curl -I https://google.com
+# Debian / Ubuntu
+sudo apt-get install curl grep sed gawk
+
+# Arch
+sudo pacman -S curl grep sed gawk
+
+# Termux
+pkg install curl grep sed gawk
 ```
-Debug Mode
-```bash
-# Run with debug output
-bash -x xtra.sh -u example.com -f
-```
 
-Contributing
-Fork the repository
+**No results on a page you know has emails**
+Run with `-v` (verbose) to see each request. The site may be JavaScript-rendered — XTRA works on server-rendered HTML only and does not execute JavaScript. For JS-heavy sites, combine XTRA with a tool like `wget --mirror` or Playwright to pre-render pages.
 
-Create feature branch
+**Getting blocked quickly**
+Increase the delay between requests: `-w 3` or higher. Some sites also block the default user-agent — the full Chrome UA used in v2.0 helps, but aggressive WAFs may still block automated requests.
 
-Commit changes
-
-Push and create Pull Request
-
-### 📝 License
-XTRA v1.0 is released under the MIT License - see LICENSE file.
-
+**JSON export fails**
+Ensure `python3` is installed. A basic JSON fallback (emails only) is used when python3 is not available.
 
 ---
-⭐ Support
-If XTRA helps your work:
 
-⭐ Star the repository
+## Ethical & Legal Use
 
-🔄 Share with colleagues
+XTRA is built for:
+- Security assessments on systems you own or have **written permission** to test
+- Bug bounty programs — only against in-scope targets
+- Educational use and learning about web technologies
+- Authorized penetration testing engagements
 
-🐛 Report issues
-
-💡 Suggest improvements
+**Do not use XTRA to scan systems without authorization.** Unauthorized scanning may violate the Computer Fraud and Abuse Act (USA), the Computer Misuse Act (UK), and equivalent laws in other jurisdictions. You are solely responsible for how you use this tool.
 
 ---
-Developed by Exploit Lab | Tremor
 
-Security Reminder: Always use tools ethically and with proper authorization.
+## Contributing
 
-XTRA v1.0 | December 2025 | Exploit Lab
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes (`git commit -m 'Add my feature'`)
+4. Push the branch (`git push origin feature/my-feature`)
+5. Open a Pull Request
+
+Bug reports and technology signature contributions are especially welcome.
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+*Developed by Exploit Lab | Tremor — XTRA v2.0 | 2026*
